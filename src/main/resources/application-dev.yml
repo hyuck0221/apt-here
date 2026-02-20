@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: jdbc:mariadb://${DB_URL}/apthere_dev?autoReconnect=true&rewriteBatchedStatements=true
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.mariadb.jdbc.Driver
+  jpa:
+    properties:
+      hibernate:
+        show_sql: true
+        default_batch_fetch_size: 100
+
+apilog:
+  app-name: apthere-dev

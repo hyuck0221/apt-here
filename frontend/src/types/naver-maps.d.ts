@@ -1,0 +1,198 @@
+// Naver Maps v3 TypeScript declarations
+// https://navermaps.github.io/maps.js.ncp/
+
+declare namespace naver.maps {
+  class Map {
+    constructor(mapDiv: HTMLElement | string, options?: MapOptions)
+    addListener(eventName: string, handler: (...args: unknown[]) => void): MapEventListener
+    getCenter(): LatLng
+    setCenter(latlng: LatLng): void
+    getZoom(): number
+    setZoom(zoom: number): void
+  }
+
+  class Marker {
+    constructor(options?: MarkerOptions)
+    setMap(map: Map | null): void
+    getPosition(): LatLng
+    setPosition(latlng: LatLng): void
+    addListener(eventName: string, handler: (...args: unknown[]) => void): MapEventListener
+  }
+
+  class LatLng {
+    constructor(lat: number, lng: number)
+    lat(): number
+    lng(): number
+  }
+
+  interface MapOptions {
+    center?: LatLng
+    zoom?: number
+    mapTypeId?: string
+    disableDoubleClickZoom?: boolean
+    mapDataControl?: boolean
+    scaleControl?: boolean
+    logoControl?: boolean
+    logoControlOptions?: { position: Position }
+    mapTypeControl?: boolean
+    zoomControl?: boolean
+    zoomControlOptions?: { position: Position }
+  }
+
+  interface MarkerOptions {
+    position?: LatLng
+    map?: Map
+    icon?: string | ImageIcon | SymbolIcon | HtmlIcon
+    draggable?: boolean
+    cursor?: string
+  }
+
+  interface ImageIcon {
+    url: string
+    size?: Size
+    scaledSize?: Size
+    origin?: Point
+    anchor?: Point
+  }
+
+  interface SymbolIcon {
+    path: string | SymbolPath
+    fillColor?: string
+    fillOpacity?: number
+    strokeColor?: string
+    strokeWeight?: number
+    scale?: number
+    anchor?: Point
+  }
+
+  interface HtmlIcon {
+    content: string
+    size?: Size
+    anchor?: Point
+  }
+
+  class Size {
+    constructor(width: number, height: number)
+  }
+
+  class Point {
+    constructor(x: number, y: number)
+  }
+
+  type MapEventListener = unknown
+
+  const enum Position {
+    CENTER = 0,
+    TOP_LEFT = 1,
+    TOP_CENTER = 2,
+    TOP_RIGHT = 3,
+    LEFT_TOP = 4,
+    LEFT_CENTER = 5,
+    LEFT_BOTTOM = 6,
+    BOTTOM_LEFT = 7,
+    BOTTOM_CENTER = 8,
+    BOTTOM_RIGHT = 9,
+    RIGHT_TOP = 10,
+    RIGHT_CENTER = 11,
+    RIGHT_BOTTOM = 12,
+  }
+
+  namespace Event {
+    function addListener(
+      target: Map | Marker,
+      eventName: string,
+      listener: (...args: unknown[]) => void
+    ): MapEventListener
+    function removeListener(listener: MapEventListener): void
+  }
+
+  namespace Service {
+    function geocode(
+      options: GeocodeOptions,
+      callback: (status: GeocodeStatus, response: GeocodeResponse) => void
+    ): void
+
+    type GeocodeStatus = 'OK' | 'ERROR'
+
+    interface GeocodeOptions {
+      query: string
+      coordinate?: string
+      filter?: string
+    }
+
+    interface GeocodeResponse {
+      /** v2 래퍼 없이 최상위에 위치 (reverseGeocode와 다름) */
+      addresses: Array<{
+        roadAddress: string
+        jibunAddress: string
+        englishAddress: string
+        /** 경도 (longitude) */
+        x: string
+        /** 위도 (latitude) */
+        y: string
+        distance: number
+        addressElements: Array<{
+          types: string[]
+          longName: string
+          shortName: string
+          code: string
+        }>
+      }>
+      meta: { totalCount: number; page: number; count: number }
+      errorMessage: string
+    }
+
+    function reverseGeocode(
+      options: ReverseGeocodeOptions,
+      callback: (status: ReverseGeocodeStatus, response: ReverseGeocodeResponse) => void
+    ): void
+
+    type ReverseGeocodeStatus = 'OK' | 'ERROR'
+
+    interface ReverseGeocodeOptions {
+      coords: LatLng
+      orders?: string
+    }
+
+    interface ReverseGeocodeResponse {
+      v2: {
+        status: { code: number; name: string; message: string }
+        /** 도로명/지번 주소 문자열 */
+        address: {
+          roadAddress: string
+          jibunAddress: string
+        }
+        results: Array<{
+          /** "legalcode" | "admcode" */
+          name: string
+          code: {
+            /** 법정동코드 10자리 */
+            id: string
+            /** "L" = 법정동, "A" = 행정동 */
+            type: 'L' | 'A' | string
+            mappingId: string
+          }
+          region: {
+            area0: { name: string }
+            area1: { name: string; alias?: string }
+            area2: { name: string }
+            area3: { name: string }
+            area4: { name: string }
+          }
+          land?: {
+            type: string
+            name: string
+            number1: string
+            number2: string
+            addition0: { type: string; value: string }
+            addition1: { type: string; value: string }
+          }
+        }>
+      }
+    }
+  }
+}
+
+interface Window {
+  naver: typeof naver
+}

@@ -1,0 +1,82 @@
+.button {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+
+  background: var(--color-primary);
+  color: white;
+  border-radius: var(--radius-full);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
+  transition: background var(--transition-base),
+              transform var(--transition-base),
+              box-shadow var(--transition-base),
+              bottom var(--transition-base);
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  box-shadow: 0 6px 24px rgba(37, 99, 235, 0.5);
+}
+
+.button:active:not(:disabled) {
+  transform: translateX(-50%) scale(0.97);
+}
+
+.button:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+/* 패널이 열렸을 때 위로 이동 (모바일) */
+.panelOpen {
+  bottom: calc(50vh + 16px);
+}
+
+/* 데스크탑 */
+@media (min-width: 768px) {
+  .button {
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* 패널이 열렸을 때 왼쪽으로 이동 (사이드바 공간 확보) */
+  .panelOpen {
+    left: calc(50% - 200px);
+    bottom: 32px;
+    transform: translateX(-50%);
+  }
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+/* 로딩 인디케이터 */
+.loadingDot {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
