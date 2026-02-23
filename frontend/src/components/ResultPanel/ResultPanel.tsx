@@ -6,21 +6,26 @@ import type { AptPriceResponse } from '../../types/api'
 interface ResultPanelProps {
   isOpen: boolean
   isLoading: boolean
+  isSlowLoading?: boolean
   result: AptPriceResponse | null
   error: string | null
   onClose: () => void
 }
 
 function PanelContent({
-  isLoading, result, error, onClose,
+  isLoading, isSlowLoading, result, error, onClose,
 }: Omit<ResultPanelProps, 'isOpen'>) {
+  const loadingMessage = isSlowLoading
+    ? '아파트 정보 업데이트 중입니다'
+    : '아파트 실거래가 조회 중...'
+
   return (
     <>
       <div className={styles.header}>
         <div className={styles.titleGroup}>
-          {result && <p className={styles.address}>{result.address}</p>}
+          {result && <p className={styles.address}>{result.dealYmd.slice(0, 4)}년 {result.dealYmd.slice(4)}월 기준</p>}
           <h2 className={styles.title}>
-            {result ? `아파트 실거래가 (${result.aptInfos.length}건)` : '검색 결과'}
+            {result ? `아파트 실거래가 (${result.items.length}건)` : '검색 결과'}
           </h2>
         </div>
         <button className={styles.closeButton} onClick={onClose} aria-label="패널 닫기">
@@ -31,7 +36,7 @@ function PanelContent({
       </div>
 
       <div className={styles.body}>
-        {isLoading && <LoadingSpinner message="아파트 실거래가 조회 중..." />}
+        {isLoading && <LoadingSpinner message={loadingMessage} />}
 
         {error && !isLoading && (
           <div className={styles.stateBox}>
@@ -44,13 +49,13 @@ function PanelContent({
         )}
 
         {result && !isLoading && (
-          result.aptInfos.length === 0 ? (
+          result.items.length === 0 ? (
             <div className={styles.stateBox}>
               <p className={styles.stateText}>이 지역의 실거래가 데이터가 없습니다.</p>
             </div>
           ) : (
             <ul className={styles.cardList}>
-              {result.aptInfos.map((apt, index) => (
+              {result.items.map((apt, index) => (
                 <li key={index}>
                   <AptCard apt={apt} />
                 </li>
@@ -63,7 +68,7 @@ function PanelContent({
   )
 }
 
-export function ResultPanel({ isOpen, isLoading, result, error, onClose }: ResultPanelProps) {
+export function ResultPanel({ isOpen, isLoading, isSlowLoading, result, error, onClose }: ResultPanelProps) {
   return (
     /* 모바일: 바깥 클릭(배경) 시 닫힘 / 데스크탑: flex 사이드바 */
     <div
@@ -76,6 +81,7 @@ export function ResultPanel({ isOpen, isLoading, result, error, onClose }: Resul
       <div className={styles.inner} onClick={e => e.stopPropagation()}>
         <PanelContent
           isLoading={isLoading}
+          isSlowLoading={isSlowLoading}
           result={result}
           error={error}
           onClose={onClose}

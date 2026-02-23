@@ -30,6 +30,7 @@ declare namespace naver.maps {
     zoom?: number
     mapTypeId?: string
     disableDoubleClickZoom?: boolean
+    disableKineticPan?: boolean
     mapDataControl?: boolean
     scaleControl?: boolean
     logoControl?: boolean
@@ -37,6 +38,7 @@ declare namespace naver.maps {
     mapTypeControl?: boolean
     zoomControl?: boolean
     zoomControlOptions?: { position: Position }
+    tileSpare?: number
   }
 
   interface MarkerOptions {
@@ -107,21 +109,26 @@ declare namespace naver.maps {
   }
 
   namespace Service {
+    const Status: { readonly OK: string; readonly ERROR: string }
+
     function geocode(
       options: GeocodeOptions,
-      callback: (status: GeocodeStatus, response: GeocodeResponse) => void
+      callback: (status: string, response: GeocodeResponse) => void
     ): void
 
-    type GeocodeStatus = 'OK' | 'ERROR'
+    type GeocodeStatus = string
 
     interface GeocodeOptions {
       query: string
+      /** 검색 결과 우선순위 힌트 좌표. "경도,위도" 형식 (예: "127.0016,37.5642") */
       coordinate?: string
       filter?: string
     }
 
+    /** 실제 Naver Maps SDK geocode 응답 — v2 래퍼 없이 최상위 */
     interface GeocodeResponse {
-      /** v2 래퍼 없이 최상위에 위치 (reverseGeocode와 다름) */
+      status: string
+      meta: { totalCount: number; page: number; count: number }
       addresses: Array<{
         roadAddress: string
         jibunAddress: string
@@ -138,7 +145,6 @@ declare namespace naver.maps {
           code: string
         }>
       }>
-      meta: { totalCount: number; page: number; count: number }
       errorMessage: string
     }
 

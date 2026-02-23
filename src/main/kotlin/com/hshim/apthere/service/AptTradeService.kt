@@ -1,11 +1,11 @@
 package com.hshim.apthere.service
 
 import com.hshim.apthere.config.PublicDataConfig
-import com.hshim.apthere.entity.AptFetchMeta
-import com.hshim.apthere.entity.AptRentRecord
+import com.hshim.apthere.entity.AptTradeFetchMeta
+import com.hshim.apthere.entity.AptTradeRecord
 import com.hshim.apthere.model.*
-import com.hshim.apthere.repository.AptFetchMetaRepository
-import com.hshim.apthere.repository.AptRentRecordRepository
+import com.hshim.apthere.repository.AptTradeFetchMetaRepository
+import com.hshim.apthere.repository.AptTradeRecordRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -19,16 +19,16 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 @Service
-class AptPriceService(
+class AptTradeService(
     private val apisisRestClient: RestClient,
     private val publicDataConfig: PublicDataConfig,
-    private val aptRentRecordRepository: AptRentRecordRepository,
-    private val aptFetchMetaRepository: AptFetchMetaRepository,
+    private val aptTradeRecordRepository: AptTradeRecordRepository,
+    private val aptTradeFetchMetaRepository: AptTradeFetchMetaRepository,
 ) {
     private val publicDataRestClient = RestClient.create()
     private val ymdFormatter = DateTimeFormatter.ofPattern("yyyyMM")
 
-    fun findAptPrices(request: AptPriceRequest): AptPriceResponse {
+    fun findAptTrades(request: AptPriceRequest): AptTradeResponse {
         val lawdCd = request.lawdCd ?: fetchLawdCd(request.address)
         val lawdCd5 = lawdCd.take(5)
         val currentYmd = LocalDate.now().format(ymdFormatter)
@@ -39,7 +39,7 @@ class AptPriceService(
         }
 
         // DB에서 조회 이력 조회
-        val fetchedMetas = aptFetchMetaRepository.findByLawdCd5AndDealYmdIn(lawdCd5, months)
+        val fetchedMetas = aptTradeFetchMetaRepository.findByLawdCd5AndDealYmdIn(lawdCd5, months)
             .associateBy { it.dealYmd }
 
         val today = LocalDate.now()
@@ -64,26 +64,32 @@ class AptPriceService(
         }
 
         // DB에서 12개월 전체 조회
-        val records = aptRentRecordRepository.findByLawdCd5AndDealYmdInAndDong(lawdCd5, months, request.dong)
+        val records = aptTradeRecordRepository.findByLawdCd5AndDealYmdInAndDong(lawdCd5, months, request.dong)
 
         val items = records
             .map { r ->
-                AptRentItem(
+                AptTradeItem(
                     aptName = r.aptName,
+                    dong = r.dong,
+                    aptDong = r.aptDong,
+                    jibun = r.jibun,
                     floor = r.floor,
                     area = r.area,
-                    rentType = r.rentType,
-                    deposit = r.deposit,
-                    monthlyRent = r.monthlyRent,
+                    dealAmount = r.dealAmount,
                     dealDate = r.dealDate,
                     buildYear = r.buildYear,
-                    dong = r.dong,
-                    contractType = r.contractType,
-                    useRRRight = r.useRRRight,
+                    cdealType = r.cdealType,
+                    cdealDay = r.cdealDay,
+                    dealingGbn = r.dealingGbn,
+                    estateAgentSggNm = r.estateAgentSggNm,
+                    rgstDate = r.rgstDate,
+                    slerGbn = r.slerGbn,
+                    buyerGbn = r.buyerGbn,
+                    landLeaseholdGbn = r.landLeaseholdGbn,
                 )
             }.sortedByDescending { it.dealDate }
 
-        return AptPriceResponse(
+        return AptTradeResponse(
             lawdCd = lawdCd,
             dealYmd = currentYmd,
             totalCount = items.size,
@@ -93,37 +99,43 @@ class AptPriceService(
 
     private fun fetchAndSave(lawdCd5: String, dealYmd: String) {
         // 기존 캐시 삭제 (당월 재조회 대응)
-        aptRentRecordRepository.deleteByLawdCd5AndDealYmd(lawdCd5, dealYmd)
+        aptTradeRecordRepository.deleteByLawdCd5AndDealYmd(lawdCd5, dealYmd)
 
         // 공공데이터 API 조회
-        val rawData = fetchAptRentData(lawdCd5, dealYmd)
-        val items = mapToAptRentItems(rawData)
+        val rawData = fetchAptTradeData(lawdCd5, dealYmd)
+        val items = mapToAptTradeItems(rawData)
 
         // DB 저장
         val records = items.map { item ->
-            AptRentRecord(
+            AptTradeRecord(
                 lawdCd5 = lawdCd5,
                 dealYmd = dealYmd,
                 aptName = item.aptName,
+                dong = item.dong,
+                aptDong = item.aptDong,
+                jibun = item.jibun,
                 floor = item.floor,
                 area = item.area,
-                rentType = item.rentType,
-                deposit = item.deposit,
-                monthlyRent = item.monthlyRent,
+                dealAmount = item.dealAmount,
                 dealDate = item.dealDate,
                 buildYear = item.buildYear,
-                dong = item.dong,
-                contractType = item.contractType,
-                useRRRight = item.useRRRight,
+                cdealType = item.cdealType,
+                cdealDay = item.cdealDay,
+                dealingGbn = item.dealingGbn,
+                estateAgentSggNm = item.estateAgentSggNm,
+                rgstDate = item.rgstDate,
+                slerGbn = item.slerGbn,
+                buyerGbn = item.buyerGbn,
+                landLeaseholdGbn = item.landLeaseholdGbn,
             )
         }
-        aptRentRecordRepository.saveAll(records)
+        aptTradeRecordRepository.saveAll(records)
 
         // 조회 이력 갱신
-        val meta = aptFetchMetaRepository.findByLawdCd5AndDealYmd(lawdCd5, dealYmd)
-            ?: AptFetchMeta(lawdCd5 = lawdCd5, dealYmd = dealYmd)
+        val meta = aptTradeFetchMetaRepository.findByLawdCd5AndDealYmd(lawdCd5, dealYmd)
+            ?: AptTradeFetchMeta(lawdCd5 = lawdCd5, dealYmd = dealYmd)
         meta.fetchedAt = LocalDateTime.now()
-        aptFetchMetaRepository.save(meta)
+        aptTradeFetchMetaRepository.save(meta)
     }
 
     private fun fetchLawdCd(address: String): String {
@@ -142,10 +154,10 @@ class AptPriceService(
             ?: throw IllegalArgumentException("주소에 해당하는 법정동코드를 찾을 수 없습니다: $address")
     }
 
-    private fun fetchAptRentData(lawdCd5: String, dealYmd: String): PublicDataResponse {
+    private fun fetchAptTradeData(lawdCd5: String, dealYmd: String): PublicDataResponse {
         val uri = UriComponentsBuilder
             .fromUriString(publicDataConfig.baseUrl)
-            .path("/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent")
+            .path("/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade")
             .queryParam("serviceKey", publicDataConfig.serviceKey)
             .queryParam("LAWD_CD", lawdCd5)
             .queryParam("DEAL_YMD", dealYmd)
@@ -163,7 +175,7 @@ class AptPriceService(
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun mapToAptRentItems(data: PublicDataResponse): List<AptRentItem> {
+    private fun mapToAptTradeItems(data: PublicDataResponse): List<AptTradeItem> {
         val raw = data.response?.body?.items?.item ?: return emptyList()
 
         val maps: List<Map<String, Any?>> = when (raw) {
@@ -175,19 +187,24 @@ class AptPriceService(
         return maps.map { m ->
             val month = m["dealMonth"]?.toString()?.padStart(2, '0') ?: "01"
             val day = m["dealDay"]?.toString()?.padStart(2, '0') ?: "01"
-            val monthlyRentStr = m["monthlyRent"]?.toString() ?: "0"
-            AptRentItem(
+            AptTradeItem(
                 aptName = m["aptNm"]?.toString() ?: "",
+                dong = m["umdNm"]?.toString()?.trim() ?: "",
+                aptDong = m["aptDong"]?.toString()?.trim() ?: "",
+                jibun = m["jibun"]?.toString()?.trim() ?: "",
                 floor = m["floor"]?.toString() ?: "",
                 area = m["excluUseAr"]?.toString() ?: "",
-                rentType = if (monthlyRentStr == "0") "전세" else "월세",
-                deposit = m["deposit"]?.toString()?.trim() ?: "",
-                monthlyRent = monthlyRentStr,
+                dealAmount = m["dealAmount"]?.toString()?.trim() ?: "",
                 dealDate = "${m["dealYear"]}-$month-$day",
                 buildYear = m["buildYear"]?.toString() ?: "",
-                dong = m["umdNm"]?.toString()?.trim() ?: "",
-                contractType = m["contractType"]?.toString()?.trim() ?: "",
-                useRRRight = m["useRRRight"]?.toString()?.trim() ?: "",
+                cdealType = m["cdealType"]?.toString()?.trim() ?: "",
+                cdealDay = m["cdealDay"]?.toString()?.trim() ?: "",
+                dealingGbn = m["dealingGbn"]?.toString()?.trim() ?: "",
+                estateAgentSggNm = m["estateAgentSggNm"]?.toString()?.trim() ?: "",
+                rgstDate = m["rgstDate"]?.toString()?.trim() ?: "",
+                slerGbn = m["slerGbn"]?.toString()?.trim() ?: "",
+                buyerGbn = m["buyerGbn"]?.toString()?.trim() ?: "",
+                landLeaseholdGbn = m["landLeaseholdGbn"]?.toString()?.trim() ?: "",
             )
         }
     }

@@ -18,7 +18,7 @@ export default function App() {
   const topRef = useRef<HTMLDivElement>(null)
 
   const { position: gpsPosition, loading: gpsLoading } = useGeolocation()
-  const { search, reset, isLoading, result, error } = useAptSearch()
+  const { search, reset, isLoading, isSlowLoading, result, error } = useAptSearch()
 
   useEffect(() => {
     if (!gpsLoading) {
@@ -27,11 +27,10 @@ export default function App() {
     }
   }, [gpsLoading, gpsPosition])
 
+  // 핀을 옮길 때는 패널을 닫지 않고 위치만 업데이트
   const handlePinMove = useCallback((position: GeoPosition) => {
     setPinPosition(position)
-    setIsPanelOpen(false)
-    reset()
-  }, [reset])
+  }, [])
 
   const handleSearch = useCallback(async () => {
     setShowLocationSearch(false)
@@ -93,6 +92,7 @@ export default function App() {
               initialPosition={DEFAULT_POSITION}
               onPinMove={handlePinMove}
               onMapReady={handleMapReady}
+              aptResults={result}
             />
             <button
               className={styles.myLocationButton}
@@ -169,6 +169,7 @@ export default function App() {
       <ResultPanel
         isOpen={isPanelOpen}
         isLoading={isLoading}
+        isSlowLoading={isSlowLoading}
         result={result}
         error={error}
         onClose={handleClosePanel}

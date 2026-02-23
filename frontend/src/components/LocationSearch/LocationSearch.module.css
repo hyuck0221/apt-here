@@ -1,8 +1,10 @@
 .wrapper {
+  position: relative; /* 드롭다운 resultList의 기준점 */
   display: flex;
   flex-direction: column;
   gap: 8px;
   animation: slideDown 0.2s ease;
+  z-index: 20; /* LandingSection 카드(backdrop-filter) 위에 표시 */
 }
 
 @keyframes slideDown {
@@ -98,14 +100,23 @@
   padding: 0 4px;
 }
 
-/* ===== 검색 결과 드롭다운 ===== */
+/* ===== 검색 결과 드롭다운 =====
+   position: absolute 로 플로팅 — heroSection 높이를 밀지 않아
+   LandingSection과 겹치는 레이아웃 문제 방지
+   ==================================================== */
 .resultList {
+  position: absolute;
+  top: calc(100% + 4px); /* inputRow 바로 아래 */
+  left: 0;
+  right: 0;
+  z-index: 100;
   list-style: none;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  max-height: min(260px, 40svh);
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   animation: slideDown 0.15s ease;
 }
 

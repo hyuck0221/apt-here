@@ -34,6 +34,8 @@ dependencies {
     runtimeOnly("org.mariadb.jdbc:mariadb-java-client")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
+
     implementation("com.github.hyuck0221:kotlin-utils:0.0.4")
     implementation("com.github.hyuck0221:springboot-apilog:0.11.0")
 }

@@ -24,7 +24,8 @@
   .inner {
     width: 100%;
     max-width: 420px;
-    max-height: 75vh;
+    /* 짧은 화면에서 잘리지 않도록 svh 기준으로 여백 확보 */
+    max-height: min(75vh, calc(100svh - 48px));
     background: var(--color-surface);
     border-radius: var(--radius-lg);
     overflow: hidden;

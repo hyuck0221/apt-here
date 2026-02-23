@@ -147,3 +147,38 @@
     display: inline;
   }
 }
+
+/* ===== 짧은 화면 ===== */
+@media (max-height: 700px) {
+  .section {
+    padding: 40px 20px;
+    align-items: flex-start;
+  }
+
+  .inner {
+    gap: 32px;
+  }
+
+  .hero {
+    gap: 14px;
+  }
+}
+
+@media (max-height: 560px) {
+  .section {
+    padding: 28px 20px;
+  }
+
+  .inner {
+    gap: 24px;
+  }
+
+  .heading {
+    font-size: 28px;
+  }
+
+  .card {
+    padding: 20px 18px;
+    gap: 8px;
+  }
+}
