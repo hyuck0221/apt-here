@@ -13,6 +13,25 @@
   animation: none !important;
 }
 
+.zoomOverlay {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 20px;
+  white-space: nowrap;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 10;
+}
+
 /* 줌/패닝 중 타일 스케일링 보간 품질 향상 */
 .mapContainer :global(canvas),
 .mapContainer :global(img) {

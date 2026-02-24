@@ -9,6 +9,14 @@ declare namespace naver.maps {
     setCenter(latlng: LatLng): void
     getZoom(): number
     setZoom(zoom: number): void
+    getBounds(): LatLngBounds | null
+  }
+
+  class LatLngBounds {
+    hasLatLng(latlng: LatLng): boolean
+    extend(latlng: LatLng): void
+    getNE(): LatLng
+    getSW(): LatLng
   }
 
   class Marker {
@@ -46,7 +54,9 @@ declare namespace naver.maps {
     map?: Map
     icon?: string | ImageIcon | SymbolIcon | HtmlIcon
     draggable?: boolean
+    clickable?: boolean
     cursor?: string
+    zIndex?: number
   }
 
   interface ImageIcon {

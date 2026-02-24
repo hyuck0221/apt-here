@@ -20,3 +20,6 @@ apisis:
 public-data:
   base-url: http://apis.data.go.kr
   service-key: ${PUBLIC_DATA_SERVICE_KEY}
+
+kakao:
+  api-key: ${KAKAO_API_KEY}

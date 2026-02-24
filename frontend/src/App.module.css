@@ -208,46 +208,12 @@
   gap: 10px;
 }
 
-.searchButton {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 15px 20px;
-  background: var(--color-primary);
-  color: white;
-  border-radius: var(--radius-md);
-  font-size: 15px;
-  font-weight: 700;
-  font-family: var(--font-sans);
-  box-shadow: 0 2px 12px rgba(37, 99, 235, 0.3);
-  transition:
-    background var(--transition-base),
-    box-shadow var(--transition-base),
-    transform 0.1s;
-}
-
-.searchButton:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
-}
-
-.searchButton:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.searchButton:disabled {
-  opacity: 0.75;
-  cursor: not-allowed;
-}
-
 .locationButton {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 15px 16px;
+  padding: 13px 20px;
   background: var(--color-surface);
   color: var(--color-text-primary);
   border: 1.5px solid var(--color-border);
@@ -340,19 +306,3 @@
   }
 }
 
-/* ====================================================
-   로딩 스피너 (검색 버튼 내부)
-   ==================================================== */
-.spinner {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}

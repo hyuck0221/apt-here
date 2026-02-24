@@ -1,67 +1,83 @@
 import { useEffect, useRef, useCallback } from 'react'
 import type { GeoPosition } from './useGeolocation'
-import type { AptPriceResponse } from '../types/api'
+import type { AptInfo } from '../types/api'
 
 interface UseNaverMapOptions {
   initialPosition: GeoPosition
-  onPinMove: (position: GeoPosition) => void
-  aptResults?: AptPriceResponse | null
+  myPosition: GeoPosition | null           // 내 위치 빨간 점
+  aptList: AptInfo[]                       // 자동 핀 목록 (좌표 포함)
+  onAptSelect: (aptName: string, dong: string, address: string, lawdCd?: string) => void
+  onMapIdle: (center: GeoPosition, radiusM: number, zoom: number) => void
 }
 
-// 모듈 레벨 geocode 캐시 — 동일 쿼리 반복 API 호출 방지
-const geocodeCache = new Map<string, GeoPosition | null>()
+/** 뷰포트 대각선 반경 계산 (중심 → NE 모서리) */
+function calcRadius(center: GeoPosition, ne: GeoPosition): number {
+  const dLat = Math.abs(ne.lat - center.lat) * 111320
+  const dLng = Math.abs(ne.lng - center.lng) * 111320 * Math.cos(center.lat * Math.PI / 180)
+  return Math.min(Math.ceil(Math.sqrt(dLat * dLat + dLng * dLng)), 2000)
+}
 
-// coordinate: "경도,위도" 형식의 검색 우선순위 힌트
-function geocodeApt(query: string, coordinate: string): Promise<GeoPosition | null> {
-  if (geocodeCache.has(query)) {
-    return Promise.resolve(geocodeCache.get(query) ?? null)
-  }
+/** 좌표 → reverseGeocode → 법정동코드(10자리) */
+function fetchLawdCdFromCoords(latlng: naver.maps.LatLng): Promise<string> {
   return new Promise((resolve) => {
-    naver.maps.Service.geocode({ query, coordinate }, (_status, response) => {
-      // 실제 응답은 v2 래퍼 없이 최상위 addresses 배열
-      const addresses = response.addresses
-      if (!addresses || addresses.length === 0) {
-        geocodeCache.set(query, null)
-        resolve(null)
-        return
-      }
-      const item = addresses[0]
-      const pos: GeoPosition = { lat: parseFloat(item.y), lng: parseFloat(item.x) }
-      geocodeCache.set(query, pos)
-      resolve(pos)
-    })
+    naver.maps.Service.reverseGeocode(
+      { coords: latlng, orders: 'legalcode' as never },
+      (_status, response) => {
+        const legal = response.v2?.results.find((r) => r.name === 'legalcode')
+        resolve(legal?.code?.id ?? '')
+      },
+    )
   })
 }
 
-function haversineDistance(a: GeoPosition, b: GeoPosition): number {
-  const R = 6371000
-  const toRad = (deg: number) => (deg * Math.PI) / 180
-  const dLat = toRad(b.lat - a.lat)
-  const dLng = toRad(b.lng - a.lng)
-  const x =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x))
+/** 클릭 좌표를 reverseGeocode → 건물명(아파트명) 추출 */
+function detectAptAtPoint(latlng: naver.maps.LatLng): Promise<{ aptName: string; dong: string; address: string; lawdCd: string } | null> {
+  return new Promise((resolve) => {
+    naver.maps.Service.reverseGeocode(
+      { coords: latlng, orders: 'addr,legalcode' as never },
+      (_status, response) => {
+        const v2 = response.v2
+        if (!v2 || v2.status.code !== 0) { resolve(null); return }
+
+        const addrResult = v2.results.find((r) => r.name === 'addr')
+        const aptName = addrResult?.land?.addition0?.value?.trim() ?? ''
+        if (!aptName) { resolve(null); return }  // 건물명 없으면 아파트 아님
+
+        const legal = v2.results.find((r) => r.name === 'legalcode')
+        const reg = legal?.region
+        const dong = reg?.area3?.name?.trim() ?? ''
+        const lawdCd = legal?.code?.id ?? ''
+        const address = [reg?.area1?.name, reg?.area2?.name, reg?.area3?.name, reg?.area4?.name]
+          .filter(Boolean)
+          .join(' ')
+          .trim()
+
+        resolve({ aptName, dong, address, lawdCd })
+      },
+    )
+  })
 }
 
 export function useNaverMap(
   containerRef: React.RefObject<HTMLDivElement | null>,
-  { initialPosition, onPinMove, aptResults }: UseNaverMapOptions
+  { initialPosition, myPosition, aptList, onAptSelect, onMapIdle }: UseNaverMapOptions,
 ) {
   const mapRef = useRef<naver.maps.Map | null>(null)
-  const markerRef = useRef<naver.maps.Marker | null>(null)
+  const myDotRef = useRef<naver.maps.Marker | null>(null)
   const aptMarkersRef = useRef<naver.maps.Marker[]>([])
+  const selectedMarkerRef = useRef<naver.maps.Marker | null>(null)
 
-  // 지도 및 메인 핀 초기화
+  // 콜백은 항상 최신 참조를 사용
+  const onAptSelectRef = useRef(onAptSelect)
+  useEffect(() => { onAptSelectRef.current = onAptSelect }, [onAptSelect])
+  const onMapIdleRef = useRef(onMapIdle)
+  useEffect(() => { onMapIdleRef.current = onMapIdle }, [onMapIdle])
+
+  // ── 지도 초기화 ──
   useEffect(() => {
-    if (!containerRef.current) return
-    if (typeof window.naver === 'undefined') {
-      console.error('Naver Maps SDK가 로드되지 않았습니다. Client ID를 확인하세요.')
-      return
-    }
+    if (!containerRef.current || typeof window.naver === 'undefined') return
 
     const center = new naver.maps.LatLng(initialPosition.lat, initialPosition.lng)
-
     const map = new naver.maps.Map(containerRef.current, {
       center,
       zoom: 16,
@@ -72,115 +88,187 @@ export function useNaverMap(
       tileSpare: 7,
       disableKineticPan: false,
     })
-
-    const marker = new naver.maps.Marker({
-      position: center,
-      map,
-      draggable: true,
-      icon: {
-        content: `
-          <div style="
-            width: 32px;
-            height: 32px;
-            background: var(--color-primary, #2563eb);
-            border: 3px solid white;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          "></div>
-        `,
-        anchor: new naver.maps.Point(16, 32),
-      },
-    })
-
     mapRef.current = map
-    markerRef.current = marker
 
-    // 마커 드래그 종료 이벤트
-    naver.maps.Event.addListener(marker, 'dragend', () => {
-      const pos = marker.getPosition()
-      onPinMove({ lat: pos.lat(), lng: pos.lng() })
+    // 지도 idle → 중심 좌표 + 뷰포트 반경 + zoom 전달
+    naver.maps.Event.addListener(map, 'idle', () => {
+      const c = map.getCenter()
+      const centerPos: GeoPosition = { lat: c.lat(), lng: c.lng() }
+      const bounds = map.getBounds()
+      let radiusM = 1000
+      if (bounds) {
+        const ne = bounds.getNE()
+        radiusM = calcRadius(centerPos, { lat: ne.lat(), lng: ne.lng() })
+      }
+      onMapIdleRef.current(centerPos, radiusM, map.getZoom())
     })
 
-    // 지도 클릭 시 핀 이동
-    naver.maps.Event.addListener(map, 'click', (...args: unknown[]) => {
+    // 초기 idle 수동 트리거 (첫 로드)
+    const triggerInitialIdle = () => {
+      const bounds = map.getBounds()
+      let radiusM = 1000
+      if (bounds) {
+        const ne = bounds.getNE()
+        radiusM = calcRadius(
+          { lat: initialPosition.lat, lng: initialPosition.lng },
+          { lat: ne.lat(), lng: ne.lng() },
+        )
+      }
+      onMapIdleRef.current({ lat: initialPosition.lat, lng: initialPosition.lng }, radiusM, map.getZoom())
+    }
+    triggerInitialIdle()
+
+    // ── 드래그 중 주기적 갱신 (1.5초마다) ──
+    let dragIntervalId: ReturnType<typeof setInterval> | null = null
+
+    const fireCurrent = () => {
+      const c = map.getCenter()
+      const centerPos: GeoPosition = { lat: c.lat(), lng: c.lng() }
+      const bounds = map.getBounds()
+      let radiusM = 1000
+      if (bounds) {
+        const ne = bounds.getNE()
+        radiusM = calcRadius(centerPos, { lat: ne.lat(), lng: ne.lng() })
+      }
+      onMapIdleRef.current(centerPos, radiusM, map.getZoom())
+    }
+
+    naver.maps.Event.addListener(map, 'dragstart', () => {
+      dragIntervalId = setInterval(fireCurrent, 1500)
+    })
+
+    naver.maps.Event.addListener(map, 'dragend', () => {
+      if (dragIntervalId !== null) {
+        clearInterval(dragIntervalId)
+        dragIntervalId = null
+      }
+    })
+
+    // ── 지도 클릭 → 아파트 감지 ──
+    naver.maps.Event.addListener(map, 'click', async (...args: unknown[]) => {
       const e = args[0] as { latlng: naver.maps.LatLng }
-      const latlng = e.latlng
-      marker.setPosition(latlng)
-      onPinMove({ lat: latlng.lat(), lng: latlng.lng() })
+      const detected = await detectAptAtPoint(e.latlng)
+      if (!detected) return
+
+      // 클릭 위치에 선택 마커 표시
+      selectedMarkerRef.current?.setMap(null)
+      selectedMarkerRef.current = new naver.maps.Marker({
+        position: e.latlng,
+        map,
+        icon: {
+          content: `<div style="
+            width:14px;height:14px;
+            background:#2563eb;
+            border:3px solid white;
+            border-radius:50%;
+            box-shadow:0 2px 6px rgba(37,99,235,.5);
+          "></div>`,
+          anchor: new naver.maps.Point(7, 7),
+        },
+        clickable: false,
+      })
+
+      onAptSelectRef.current(detected.aptName, detected.dong, detected.address, detected.lawdCd)
     })
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     return () => {
-      marker.setMap(null)
+      if (dragIntervalId !== null) clearInterval(dragIntervalId)
+      aptMarkersRef.current.forEach((m) => m.setMap(null))
+      aptMarkersRef.current = []
+      myDotRef.current?.setMap(null)
+      selectedMarkerRef.current?.setMap(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containerRef])
 
-  // 아파트 결과 마커 표시 — 선택 핀 반경 2km 이내 최대 30개
+  // ── 내 위치 빨간 점 ──
   useEffect(() => {
-    // 기존 아파트 마커 제거
+    if (!mapRef.current || !myPosition) return
+    const latlng = new naver.maps.LatLng(myPosition.lat, myPosition.lng)
+    if (myDotRef.current) {
+      myDotRef.current.setPosition(latlng)
+    } else {
+      myDotRef.current = new naver.maps.Marker({
+        position: latlng,
+        map: mapRef.current,
+        icon: {
+          content: `<div style="
+            width:12px;height:12px;
+            background:#ef4444;
+            border:2.5px solid white;
+            border-radius:50%;
+            box-shadow:0 1px 4px rgba(0,0,0,.35);
+          "></div>`,
+          anchor: new naver.maps.Point(6, 6),
+        },
+        clickable: false,
+        zIndex: 100,
+      })
+    }
+  }, [myPosition])
+
+  // ── 아파트 핀 (좌표 직접 사용, 지오코딩 없음) ──
+  useEffect(() => {
     aptMarkersRef.current.forEach((m) => m.setMap(null))
     aptMarkersRef.current = []
 
-    if (!aptResults?.items.length || !mapRef.current || !markerRef.current) return
+    if (!aptList.length || !mapRef.current) return
 
     const map = mapRef.current
-    const pinPos = markerRef.current.getPosition()
-    const center: GeoPosition = { lat: pinPos.lat(), lng: pinPos.lng() }
 
-    // 고유 아파트 목록 (aptName 기준 중복 제거)
-    const seen = new Set<string>()
-    const uniqueApts: string[] = []
-    for (const item of aptResults.items) {
-      if (!seen.has(item.aptName)) {
-        seen.add(item.aptName)
-        uniqueApts.push(item.aptName)
-      }
-    }
+    aptList.forEach((apt) => {
+      if (!apt.lat || !apt.lng) return
 
-    let cancelled = false
-    // 핀 위치를 coordinate 힌트로 전달 → 동명 아파트가 여러 곳일 때 가장 가까운 결과 우선
-    const coordinateHint = `${center.lng},${center.lat}`
-
-    uniqueApts.slice(0, 30).forEach(async (aptName) => {
-      const pos = await geocodeApt(aptName, coordinateHint)
-      if (cancelled || !pos || !mapRef.current) return
-      if (haversineDistance(center, pos) > 2000) return
-
-      const label = aptName.length > 9 ? aptName.slice(0, 9) + '…' : aptName
+      const label = apt.aptName.length > 9 ? apt.aptName.slice(0, 9) + '…' : apt.aptName
       const marker = new naver.maps.Marker({
-        position: new naver.maps.LatLng(pos.lat, pos.lng),
+        position: new naver.maps.LatLng(apt.lat, apt.lng),
         map,
         icon: {
-          content: `<div style="display:flex;flex-direction:column;align-items:center;width:80px;pointer-events:none;">
-            <div style="background:#f97316;color:#fff;border-radius:8px;padding:2px 7px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.25);font-family:-apple-system,sans-serif;overflow:hidden;text-overflow:ellipsis;text-align:center;max-width:80px;">${label}</div>
-            <div style="width:6px;height:6px;background:#f97316;border:2px solid #fff;border-radius:50%;margin-top:2px;flex-shrink:0;"></div>
-          </div>`,
-          anchor: new naver.maps.Point(40, 26),
+          content: `
+            <div style="display:flex;flex-direction:column;align-items:center;width:84px;cursor:pointer;">
+              <div style="
+                background:#f97316;color:#fff;
+                border-radius:8px;padding:3px 8px;
+                font-size:10px;font-weight:700;
+                white-space:nowrap;
+                box-shadow:0 2px 6px rgba(0,0,0,.25);
+                font-family:-apple-system,sans-serif;
+                max-width:84px;overflow:hidden;text-overflow:ellipsis;text-align:center;
+              ">${label}</div>
+              <div style="
+                width:6px;height:6px;
+                background:#f97316;
+                border:2px solid white;
+                border-radius:50%;margin-top:2px;
+              "></div>
+            </div>`,
+          anchor: new naver.maps.Point(42, 28),
         },
+        zIndex: 50,
       })
 
-      if (cancelled) {
-        marker.setMap(null)
-      } else {
-        aptMarkersRef.current.push(marker)
-      }
+      naver.maps.Event.addListener(marker, 'click', async () => {
+        selectedMarkerRef.current?.setMap(null)
+        const latlng = new naver.maps.LatLng(apt.lat, apt.lng)
+        const lawdCd = await fetchLawdCdFromCoords(latlng)
+        onAptSelectRef.current(apt.aptName, apt.dong, apt.address, lawdCd || undefined)
+      })
+
+      aptMarkersRef.current.push(marker)
     })
 
     return () => {
-      cancelled = true
       aptMarkersRef.current.forEach((m) => m.setMap(null))
       aptMarkersRef.current = []
     }
-  }, [aptResults])
+  }, [aptList])
 
-  // 외부에서 핀 위치 업데이트 (초기 GPS 좌표 받은 후)
-  const movePin = useCallback((position: GeoPosition) => {
-    if (!mapRef.current || !markerRef.current) return
-    const latlng = new naver.maps.LatLng(position.lat, position.lng)
-    markerRef.current.setPosition(latlng)
-    mapRef.current.setCenter(latlng)
+  // ── 외부에서 지도 이동 ──
+  const moveMap = useCallback((position: GeoPosition) => {
+    if (!mapRef.current) return
+    mapRef.current.setCenter(new naver.maps.LatLng(position.lat, position.lng))
   }, [])
 
-  return { movePin }
+  return { moveMap }
 }

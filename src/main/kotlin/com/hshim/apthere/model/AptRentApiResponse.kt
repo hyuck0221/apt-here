@@ -1,5 +1,11 @@
 package com.hshim.apthere.model
 
+import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.databind.DeserializationContext
+import com.fasterxml.jackson.databind.JsonDeserializer
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+
 data class PublicDataResponse(
     val response: PublicDataWrapper? = null,
 )
@@ -21,10 +27,26 @@ data class PublicDataBodyContent(
     val totalCount: Int = 0,
 )
 
+@JsonDeserialize(using = AptRentItemsWrapperDeserializer::class)
 data class AptRentItemsWrapper(
     // 공공데이터 API 특성: 다건이면 List<Map>, 단건이면 Map, 없으면 String("")으로 역직렬화됨
     val item: Any? = null,
 )
+
+class AptRentItemsWrapperDeserializer : JsonDeserializer<AptRentItemsWrapper>() {
+    override fun deserialize(p: JsonParser, ctxt: DeserializationContext): AptRentItemsWrapper {
+        val node: JsonNode = p.codec.readTree(p)
+        // 공공데이터 API가 검색 결과가 없을 때 items: "" (빈 문자열)을 반환하는 경우 처리
+        if (node.isTextual && node.asText().isEmpty()) {
+            return AptRentItemsWrapper(null)
+        }
+        val itemNode = node.get("item")
+        if (itemNode == null || itemNode.isNull) {
+            return AptRentItemsWrapper(null)
+        }
+        return AptRentItemsWrapper(p.codec.treeToValue(itemNode, Any::class.java))
+    }
+}
 
 data class AptRentApiItem(
     val sggCd: String? = null,          // 지역코드 - e.g. "11530"

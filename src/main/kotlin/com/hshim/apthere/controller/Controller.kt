@@ -1,10 +1,10 @@
 package com.hshim.apthere.controller
 
-import com.hshim.apthere.model.AptPriceRequest
-import com.hshim.apthere.model.AptPriceResponse
-import com.hshim.apthere.model.AptTradeResponse
-import com.hshim.apthere.service.AptPriceService
-import com.hshim.apthere.service.AptTradeService
+import com.hshim.apthere.model.AptDealRequest
+import com.hshim.apthere.model.AptDealResponse
+import com.hshim.apthere.model.AptListRequest
+import com.hshim.apthere.model.AptListResponse
+import com.hshim.apthere.service.AptDealService
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -13,16 +13,15 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/apt")
 class Controller(
-    private val aptPriceService: AptPriceService,
-    private val aptTradeService: AptTradeService,
+    private val aptDealService: AptDealService,
 ) {
     @PostMapping("/find")
-    fun find(@RequestBody request: AptPriceRequest): AptPriceResponse {
-        return aptPriceService.findAptPrices(request)
+    fun find(@RequestBody request: AptDealRequest): AptDealResponse {
+        return aptDealService.findAptDeals(request)
     }
 
-    @PostMapping("/trade")
-    fun trade(@RequestBody request: AptPriceRequest): AptTradeResponse {
-        return aptTradeService.findAptTrades(request)
+    @PostMapping("/list")
+    fun list(@RequestBody request: AptListRequest): AptListResponse {
+        return aptDealService.listApts(request)
     }
 }
